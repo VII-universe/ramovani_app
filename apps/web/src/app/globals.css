@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-cormorant: 'Cormorant Garamond', Georgia, serif;
+    --font-geist-sans: 'Geist Sans', system-ui, sans-serif;
+    --font-geist-mono: 'Geist Mono', monospace;
+  }
+
+  html {
+    @apply antialiased;
+    font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-canvas text-ink font-sans;
+  }
+
+  /* Scrollbar — minimal, warm-toned */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { @apply bg-transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-ink-placeholder rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-ink-tertiary; }
+
+  /* Selection */
+  ::selection {
+    background-color: theme('colors.gold.muted');
+    color: theme('colors.ink.DEFAULT');
+  }
+}
+
+@layer components {
+  /* Utility: visually thin horizontal divider */
+  .divider {
+    @apply h-px w-full bg-canvas-muted;
+  }
+
+  /* Utility: container with comfortable max-width */
+  .container-page {
+    @apply mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-16;
+  }
+}

@@ -1,0 +1,13 @@
+version: '3.9'
+
+# Development overrides: mount source code for hot-reload
+services:
+  vision-api:
+    volumes:
+      - ../apps/vision-api/app:/app/app:ro
+      - vision-static:/tmp/ramovani-static
+
+  catalog-api:
+    volumes:
+      - ../services/catalog-api/src:/app/src:ro
+      - ../services/catalog-api/prisma:/app/prisma:ro

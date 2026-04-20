@@ -1,0 +1,76 @@
+version: '3.9'
+
+services:
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ramovani
+      POSTGRES_PASSWORD: ramovani
+      POSTGRES_DB: ramovani
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ramovani"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ── Node Alpha — Vision API ─────────────────────────────────────────────────
+  vision-api:
+    build:
+      context: ../apps/vision-api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      VISION_STATIC_DIR: /tmp/ramovani-static
+      CORS_ORIGINS: http://localhost:3000
+    volumes:
+      - vision-static:/tmp/ramovani-static
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ── Node Beta — Catalog API ─────────────────────────────────────────────────
+  catalog-api:
+    build:
+      context: ../services/catalog-api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    environment:
+      DATABASE_URL: postgresql://ramovani:ramovani@postgres:5432/ramovani
+      CORS_ORIGINS: http://localhost:3000
+      PORT: "8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ── Nginx reverse proxy ─────────────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/dev.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - vision-api
+      - catalog-api
+
+volumes:
+  pgdata:
+  vision-static:

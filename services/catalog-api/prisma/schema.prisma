@@ -1,0 +1,86 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Node Beta — Prisma schema
+// Single Source of Truth for frame and passepartout catalog data.
+// ─────────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum FrameMaterial {
+  wood
+  metal
+  composite
+}
+
+enum MaterialFinish {
+  matte
+  gloss
+  satin
+  brushed
+  natural
+  lacquered
+}
+
+enum PassepartoutStyle {
+  single
+  double
+  bevel
+}
+
+model FrameProfile {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  name   String
+  slug   String         @unique
+  material FrameMaterial
+  finish   MaterialFinish
+
+  // Physical dimensions (mm)
+  profileWidthMm Float
+  totalDepthMm   Float
+  rabbetDepthMm  Float
+  rabbetWidthMm  Float
+
+  // PBR rendering params (JSON blob)
+  pbr Json
+
+  // Commerce
+  pricePerMeter Float
+  currency      String  @default("CZK")
+  inStock       Boolean @default(true)
+  thumbnailUrl  String
+  imageUrls     String[]
+
+  @@map("frame_profiles")
+}
+
+model PassepartoutProfile {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  name      String
+  colorName String
+  colorHex  String
+  style     PassepartoutStyle
+
+  // Physical dimensions (mm)
+  thicknessMm    Float
+  bevelAngleDeg  Float @default(45)
+
+  // Commerce
+  pricePerSqMeter Float
+  currency        String  @default("CZK")
+  inStock         Boolean @default(true)
+  thumbnailUrl    String
+
+  @@map("passepartout_profiles")
+}
