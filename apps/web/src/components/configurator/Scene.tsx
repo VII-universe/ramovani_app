@@ -22,6 +22,7 @@ import { FrameMesh } from './FrameMesh'
 import { ArtworkPlane } from './ArtworkPlane'
 import { MatPlane } from './MatPlane'
 import { GlassPlane } from './GlassPlane'
+import { WallPlane } from './WallPlane'
 import { Lighting } from './Lighting'
 import { CameraRig } from './CameraRig'
 import { Spinner } from '@/components/ui/spinner'
@@ -57,12 +58,13 @@ const FALLBACK_DIMENSIONS = { widthMm: 300, heightMm: 400 }
 // ---------------------------------------------------------------------------
 
 export function Scene() {
-  const artworkDimensions    = useStore(selectors.artworkDimensions)
-  const selectedFrame        = useStore(selectors.selectedFrame)
-  const selectedPassepartout = useStore(selectors.selectedPassepartout)
+  const artworkDimensions     = useStore(selectors.artworkDimensions)
+  const selectedFrame         = useStore(selectors.selectedFrame)
+  const selectedPassepartout  = useStore(selectors.selectedPassepartout)
   const passepartoutOverlapMm = useStore(selectors.passepartoutOverlapMm)
-  const includeGlass         = useStore(selectors.includeGlass)
-  const visionResult         = useStore(selectors.visionResult)
+  const includeGlass          = useStore(selectors.includeGlass)
+  const wallColor             = useStore(selectors.wallColor)
+  const visionResult          = useStore(selectors.visionResult)
 
   // Use real state when available, fall back to defaults so Canvas always renders.
   const activeDimensions = artworkDimensions ?? FALLBACK_DIMENSIONS
@@ -106,7 +108,7 @@ export function Scene() {
         near: 0.1,
         far: 500,
       }}
-      style={{ background: SCENE_BG_COLOR }}
+      style={{ background: wallColor }}
     >
       {/* Suspense boundary wraps everything so useTexture can suspend safely */}
       <Suspense fallback={null}>
@@ -114,6 +116,12 @@ export function Scene() {
         {/* ── Lighting & environment ── */}
         <Lighting />
         <Environment preset="studio" background={false} />
+
+        {/* ── Wall — receives frame shadow, color synced with picker ── */}
+        <WallPlane
+          color={wallColor}
+          frameBackZ={-geometry.totalDepthU}
+        />
 
         {/*
          * 1. Artwork image — only when a real URL is available.

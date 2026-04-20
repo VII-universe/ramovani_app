@@ -12,6 +12,7 @@ import type {
   QuoteRequest,
 } from '@ramovani/shared-types'
 import type { StoreState } from './index'
+import { computeClientPrice } from '@/lib/pricing'
 
 export type QuoteStatus = 'idle' | 'fetching' | 'ready' | 'error' | 'stale'
 
@@ -32,6 +33,10 @@ export interface OrderSlice {
    */
   confirmedOrder: OrderConfiguration | null
 
+  /** ID returned by POST /orders after a successful submission */
+  submittedOrderId: string | null
+  submitError: string | null
+
   // ── Actions ────────────────────────────────────────────────────────────────
   /** Calls POST /quote and populates BOM + price. Marks quote stale on selection change. */
   fetchQuote: (request: QuoteRequest) => Promise<void>
@@ -39,6 +44,11 @@ export interface OrderSlice {
   markQuoteStale: () => void
   /** Freezes the current BOM + quote into confirmedOrder */
   confirmOrder: () => void
+  /**
+   * Freezes the snapshot (like confirmOrder) then POSTs to POST /orders.
+   * Returns the new order ID on success, throws on failure.
+   */
+  submitOrder: (customerEmail: string) => Promise<string>
   resetOrder: () => void
 }
 
@@ -50,6 +60,8 @@ const initialOrderState = {
   glassBOM: null,
   priceQuote: null,
   confirmedOrder: null,
+  submittedOrderId: null,
+  submitError: null,
 }
 
 export const createOrderSlice: StateCreator<
@@ -116,42 +128,152 @@ export const createOrderSlice: StateCreator<
 
   confirmOrder: () => {
     const s = get()
-    const { visionResult } = s
-    const { selectedFrame, selectedPassepartout, passepartoutOverlapMm, includeGlass } = s
-    const { frameBOM, passepartoutBOM, glassBOM, priceQuote } = s
+    const { visionResult, selectedFrame, selectedPassepartout, passepartoutOverlapMm, includeGlass } = s
 
-    if (!visionResult || !selectedFrame || !frameBOM || !priceQuote) {
-      console.error('[orderSlice] confirmOrder called with incomplete state')
+    if (!selectedFrame) {
+      console.error('[orderSlice] confirmOrder called without frame selection')
       return
     }
 
-    const snapshot: OrderConfiguration = {
-      artworkWidthMm: visionResult.dimensions.widthMm,
-      artworkHeightMm: visionResult.dimensions.heightMm,
+    const dims = visionResult?.dimensions
+    const artworkWidthMm  = dims?.widthMm  ?? 300
+    const artworkHeightMm = dims?.heightMm ?? 400
 
-      frameProfileId: selectedFrame.id,
-      frameProfileName: selectedFrame.name,
+    // ── BOM + quote — use API data when available, otherwise synthesise ────────
+    const overlapMm      = selectedPassepartout ? passepartoutOverlapMm : 0
+    const outerWidthMm   = artworkWidthMm  + 2 * overlapMm
+    const outerHeightMm  = artworkHeightMm + 2 * overlapMm
+    const railLen        = (dim: number) => dim + 2 * selectedFrame.profileWidthMm
+    const topBottomMm    = railLen(outerWidthMm)
+    const leftRightMm    = railLen(outerHeightMm)
+
+    const resolvedFrameBOM: FrameBOM = s.frameBOM ?? {
+      frameOuterWidthMm:   outerWidthMm,
+      frameOuterHeightMm:  outerHeightMm,
+      topRailMm:           topBottomMm,
+      bottomRailMm:        topBottomMm,
+      leftStileMm:         leftRightMm,
+      rightStileMm:        leftRightMm,
+      totalMoldingMm:      topBottomMm * 2 + leftRightMm * 2,
+      totalMoldingMeters:  (topBottomMm * 2 + leftRightMm * 2) / 1_000,
+    }
+
+    let resolvedPriceQuote: PriceQuote = s.priceQuote ?? (() => {
+      const bp = computeClientPrice({
+        artworkWidthMm, artworkHeightMm,
+        selectedFrame, selectedPassepartout,
+        passepartoutOverlapMm, includeGlass,
+      })
+      return {
+        quoteId:    `client-${Date.now()}`,
+        validUntil: new Date(Date.now() + 24 * 60 * 60 * 1_000).toISOString(),
+        lineItems:  bp.lineItems.map((li) => ({
+          description: li.label,
+          quantity:    1,
+          unit:        'piece',
+          unitPrice:   li.amount,
+          totalPrice:  li.amount,
+          currency:    li.currency,
+        })),
+        subtotal: bp.subtotal,
+        tax:      bp.vat,
+        taxRate:  bp.vatRate,
+        total:    bp.total,
+        currency: bp.currency,
+      }
+    })()
+
+    const resolvedPassepartoutBOM: PassepartoutBOM | undefined =
+      s.passepartoutBOM ?? (selectedPassepartout
+        ? {
+            outerWidthMm,
+            outerHeightMm,
+            innerWidthMm:      artworkWidthMm  - 2 * overlapMm,
+            innerHeightMm:     artworkHeightMm - 2 * overlapMm,
+            overlapPerSideMm:  overlapMm,
+            areaSqMm:          outerWidthMm * outerHeightMm,
+            areaSqMeters:      (outerWidthMm * outerHeightMm) / 1_000_000,
+          }
+        : undefined)
+
+    const resolvedGlassBOM: GlassBOM | undefined =
+      s.glassBOM ?? (includeGlass
+        ? {
+            widthMm:      artworkWidthMm,
+            heightMm:     artworkHeightMm,
+            areaSqMm:     artworkWidthMm * artworkHeightMm,
+            areaSqMeters: (artworkWidthMm * artworkHeightMm) / 1_000_000,
+          }
+        : undefined)
+
+    const snapshot: OrderConfiguration = {
+      artworkWidthMm,
+      artworkHeightMm,
+      frameProfileId:      selectedFrame.id,
+      frameProfileName:    selectedFrame.name,
       frameProfileWidthMm: selectedFrame.profileWidthMm,
-      frameRabbetDepthMm: selectedFrame.rabbetDepthMm,
-      frameRabbetWidthMm: selectedFrame.rabbetWidthMm,
+      frameRabbetDepthMm:  selectedFrame.rabbetDepthMm,
+      frameRabbetWidthMm:  selectedFrame.rabbetWidthMm,
 
       ...(selectedPassepartout && {
-        passepartoutProfileId: selectedPassepartout.id,
+        passepartoutProfileId:   selectedPassepartout.id,
         passepartoutProfileName: selectedPassepartout.name,
         passepartoutOverlapMm,
       }),
 
       includeGlass,
-
-      frameBOM,
-      ...(passepartoutBOM && { passepartoutBOM }),
-      ...(glassBOM && { glassBOM }),
-      quote: priceQuote,
+      frameBOM: resolvedFrameBOM,
+      ...(resolvedPassepartoutBOM && { passepartoutBOM: resolvedPassepartoutBOM }),
+      ...(resolvedGlassBOM        && { glassBOM:        resolvedGlassBOM }),
+      quote: resolvedPriceQuote,
     }
 
     set((state) => {
       state.confirmedOrder = snapshot
     })
+  },
+
+  submitOrder: async (customerEmail: string): Promise<string> => {
+    // Build the snapshot first (reuses confirmOrder logic)
+    get().confirmOrder()
+
+    // Read the freshly-set snapshot synchronously (Zustand set is sync)
+    const snapshot = get().confirmedOrder
+    if (!snapshot) throw new Error('Failed to build order snapshot')
+
+    const apiUrl = process.env['NEXT_PUBLIC_CATALOG_API_URL'] ?? 'http://localhost:8002'
+
+    set((state) => { state.submitError = null })
+
+    const res = await fetch(`${apiUrl}/orders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customerEmail,
+        artworkWidthMm:  snapshot.artworkWidthMm,
+        artworkHeightMm: snapshot.artworkHeightMm,
+        frameProfileId:   snapshot.frameProfileId,
+        frameProfileName: snapshot.frameProfileName,
+        ...(snapshot.passepartoutProfileId   && { passepartoutProfileId:   snapshot.passepartoutProfileId }),
+        ...(snapshot.passepartoutProfileName && { passepartoutProfileName: snapshot.passepartoutProfileName }),
+        ...(snapshot.passepartoutOverlapMm   && { passepartoutOverlapMm:   snapshot.passepartoutOverlapMm }),
+        includeGlass: snapshot.includeGlass,
+        totalPrice: snapshot.quote.total,
+        currency:   snapshot.quote.currency,
+        configSnapshot: snapshot,
+      }),
+    })
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      const msg = (body as { message?: string }).message ?? 'Failed to submit order'
+      set((state) => { state.submitError = msg })
+      throw new Error(msg)
+    }
+
+    const data = await res.json() as { id: string }
+    set((state) => { state.submittedOrderId = data.id })
+    return data.id
   },
 
   resetOrder: () => {

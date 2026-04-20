@@ -84,3 +84,34 @@ model PassepartoutProfile {
 
   @@map("passepartout_profiles")
 }
+
+enum OrderStatus {
+  PENDING
+  PAID
+  IN_PRODUCTION
+  SHIPPED
+  CANCELLED
+}
+
+model Order {
+  id        String      @id @default(uuid())
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  status        OrderStatus @default(PENDING)
+  customerEmail String
+
+  // Pricing
+  totalPrice Float
+  currency   String @default("CZK")
+
+  // Stripe Checkout Session ID — set when the customer is redirected to Stripe.
+  // Used by GET /checkout/success to verify payment without webhooks.
+  stripeSessionId String?
+
+  // Physical configuration snapshot (JSON) — everything the workshop needs
+  // to cut and assemble: canvas dimensions, chosen profiles, BOM, price quote.
+  configSnapshot Json
+
+  @@map("orders")
+}

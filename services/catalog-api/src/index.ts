@@ -7,6 +7,9 @@ import { config } from './config'
 import { framesRouter } from './routers/frames'
 import { passepartoutsRouter } from './routers/passepartouts'
 import { quoteRouter } from './routers/quote'
+import { ordersRouter } from './routers/orders'
+import { checkoutRouter } from './routers/checkout'
+import { stripeWebhookRouter } from './routers/webhooks'
 
 // ESM-safe __dirname (tsx runs as ESM)
 const __filename = fileURLToPath(import.meta.url)
@@ -34,6 +37,11 @@ async function bootstrap() {
   await app.register(framesRouter)
   await app.register(passepartoutsRouter)
   await app.register(quoteRouter)
+  await app.register(ordersRouter)
+  await app.register(checkoutRouter)
+  // Webhook router must be registered AFTER other JSON-parsing routes.
+  // Its scoped raw-body parser only affects /webhooks/* routes.
+  await app.register(stripeWebhookRouter)
 
   await app.listen({ port: config.port, host: config.host })
   console.log(`Catalog API  →  http://${config.host}:${config.port}`)

@@ -11,6 +11,7 @@ import { devtools, persist } from 'zustand/middleware'
 import { createArtworkSlice, type ArtworkSlice } from './artworkSlice'
 import { createSelectionSlice, type SelectionSlice } from './selectionSlice'
 import { createOrderSlice, type OrderSlice } from './orderSlice'
+import { computeClientPrice, type ClientPriceBreakdown } from '@/lib/pricing'
 
 // ── Combined store shape ──────────────────────────────────────────────────────
 
@@ -47,6 +48,7 @@ export const useStore = create<StoreState>()(
         selectedPassepartout: state.selectedPassepartout,
         passepartoutOverlapMm: state.passepartoutOverlapMm,
         includeGlass: state.includeGlass,
+        wallColor: state.wallColor,
       }),
     },
   ),
@@ -72,6 +74,7 @@ export const selectors = {
   selectedPassepartout: (s: StoreState) => s.selectedPassepartout,
   passepartoutOverlapMm: (s: StoreState) => s.passepartoutOverlapMm,
   includeGlass: (s: StoreState) => s.includeGlass,
+  wallColor: (s: StoreState) => s.wallColor,
 
   // Order
   quoteStatus: (s: StoreState) => s.quoteStatus,
@@ -81,6 +84,8 @@ export const selectors = {
   glassBOM: (s: StoreState) => s.glassBOM,
   priceQuote: (s: StoreState) => s.priceQuote,
   confirmedOrder: (s: StoreState) => s.confirmedOrder,
+  submittedOrderId: (s: StoreState) => s.submittedOrderId,
+  submitError: (s: StoreState) => s.submitError,
 
   // ── Derived / computed ──────────────────────────────────────────────────────
 
@@ -90,12 +95,27 @@ export const selectors = {
 
   /** True when the user can proceed to checkout */
   canConfirmOrder: (s: StoreState): boolean =>
-    s.quoteStatus === 'ready' &&
-    s.frameBOM !== null &&
-    s.priceQuote !== null &&
-    s.confirmedOrder === null,
+    s.selectedFrame !== null && s.confirmedOrder === null,
 
   /** True when the 3D scene has enough data to render */
   canRenderScene: (s: StoreState): boolean =>
     s.visionResult !== null && s.selectedFrame !== null,
+
+  /**
+   * Client-side price breakdown — always available when a frame is selected.
+   * Falls back to 300×400 mm when no artwork dimensions are known (isEstimate=true).
+   */
+  clientPrice: (s: StoreState): ClientPriceBreakdown | null => {
+    if (!s.selectedFrame) return null
+    const dims = s.visionResult?.dimensions
+    return computeClientPrice({
+      artworkWidthMm: dims?.widthMm ?? 300,
+      artworkHeightMm: dims?.heightMm ?? 400,
+      selectedFrame: s.selectedFrame,
+      selectedPassepartout: s.selectedPassepartout,
+      passepartoutOverlapMm: s.passepartoutOverlapMm,
+      includeGlass: s.includeGlass,
+      isEstimate: dims == null,
+    })
+  },
 } as const

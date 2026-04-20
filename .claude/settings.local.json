@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8002/health)",
-      "Bash(curl -s http://localhost:8002/frames)"
+      "Bash(curl -s http://localhost:8002/frames)",
+      "Bash(curl -s http://localhost:3000/configure/review)"
     ]
   }
 }

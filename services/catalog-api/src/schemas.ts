@@ -162,9 +162,45 @@ export const QuoteRequestSchema = z.object({
   glazingId: z.string().min(1).optional(),
 })
 
+// ── Order create request ───────────────────────────────────────────────────────
+
+/**
+ * POST /orders — body schema.
+ *
+ * The frontend sends the full OrderConfiguration snapshot (dimensions, chosen
+ * profiles, client-side BOM, price breakdown) plus the customer's email.
+ * The backend persists it verbatim in configSnapshot and extracts totalPrice.
+ */
+export const OrderCreateSchema = z.object({
+  customerEmail: z.string().email('Must be a valid email address'),
+
+  // Physical artwork dimensions
+  artworkWidthMm:  z.number().positive().max(5_000),
+  artworkHeightMm: z.number().positive().max(5_000),
+
+  // Chosen profiles
+  frameProfileId:   z.string().min(1),
+  frameProfileName: z.string().min(1),
+
+  passepartoutProfileId:   z.string().min(1).optional(),
+  passepartoutProfileName: z.string().min(1).optional(),
+  passepartoutOverlapMm:   z.number().positive().optional(),
+
+  includeGlass: z.boolean(),
+
+  // Calculated totals (client-side pricing engine)
+  totalPrice: z.number().positive(),
+  currency:   z.string().length(3).default('CZK'),
+
+  // Complete JSON snapshot for the workshop cut-sheet
+  // Accepts any object — it is stored verbatim and never re-validated server-side.
+  configSnapshot: z.record(z.unknown()),
+})
+
 // ── Inferred TypeScript types ──────────────────────────────────────────────────
 
 export type FrameProfileInput = z.infer<typeof FrameProfileSchema>
 export type PassepartoutInput = z.infer<typeof PassepartoutSchema>
 export type GlazingInput = z.infer<typeof GlazingSchema>
 export type QuoteRequestInput = z.infer<typeof QuoteRequestSchema>
+export type OrderCreateInput = z.infer<typeof OrderCreateSchema>

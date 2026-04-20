@@ -19,8 +19,11 @@ export interface SelectionSlice {
    */
   passepartoutOverlapMm: number
   includeGlass: boolean
+  /** Hex colour of the virtual gallery wall behind the frame */
+  wallColor: string
 
   // ── Actions ────────────────────────────────────────────────────────────────
+  setWallColor: (hex: string) => void
   selectFrame: (frame: FrameProfile) => void
   clearFrame: () => void
   selectPassepartout: (passepartout: PassepartoutProfile) => void
@@ -39,6 +42,7 @@ const initialSelectionState = {
   selectedPassepartout: null,
   passepartoutOverlapMm: 8,
   includeGlass: true,
+  wallColor: '#F0EDE7',
 }
 
 export const createSelectionSlice: StateCreator<
@@ -48,6 +52,10 @@ export const createSelectionSlice: StateCreator<
   SelectionSlice
 > = (set) => ({
   ...initialSelectionState,
+
+  setWallColor: (hex) => {
+    set((state) => { state.wallColor = hex })
+  },
 
   selectFrame: (frame) => {
     set((state) => {
