@@ -197,6 +197,41 @@ export const OrderCreateSchema = z.object({
   configSnapshot: z.record(z.unknown()),
 })
 
+// ── Frame CRUD (admin inventory management) ────────────────────────────────────
+
+const PbrSchema = z.object({
+  colorHex:  z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Must be a 6-digit hex colour'),
+  roughness: z.number().min(0).max(1),
+  metalness: z.number().min(0).max(1),
+})
+
+/**
+ * Body schema for POST /frames — creates a new frame profile.
+ */
+export const FrameCreateSchema = z.object({
+  name:           z.string().min(1).max(120),
+  slug:           z.string().min(1).max(80).regex(/^[a-z0-9-]+$/, 'Lowercase letters, numbers and hyphens only'),
+  material:       z.enum(['wood', 'metal', 'composite']),
+  finish:         z.enum(['matte', 'gloss', 'satin', 'brushed', 'natural', 'lacquered']),
+  profileWidthMm: z.number().positive().max(200),
+  totalDepthMm:   z.number().positive().max(100),
+  rabbetDepthMm:  z.number().positive().max(80),
+  rabbetWidthMm:  z.number().positive().max(30),
+  pricePerMeter:  z.number().positive(),
+  currency:       z.string().length(3).default('CZK'),
+  inStock:        z.boolean().default(true),
+  isActive:       z.boolean().default(true),
+  thumbnailUrl:   z.string().default(''),
+  textureUrl:     z.string().default(''),
+  pbr:            PbrSchema,
+  imageUrls:      z.array(z.string()).default([]),
+})
+
+/**
+ * Body schema for PATCH /frames/:id — all fields optional.
+ */
+export const FrameUpdateSchema = FrameCreateSchema.partial()
+
 // ── Inferred TypeScript types ──────────────────────────────────────────────────
 
 export type FrameProfileInput = z.infer<typeof FrameProfileSchema>
@@ -204,3 +239,5 @@ export type PassepartoutInput = z.infer<typeof PassepartoutSchema>
 export type GlazingInput = z.infer<typeof GlazingSchema>
 export type QuoteRequestInput = z.infer<typeof QuoteRequestSchema>
 export type OrderCreateInput = z.infer<typeof OrderCreateSchema>
+export type FrameCreateInput = z.infer<typeof FrameCreateSchema>
+export type FrameUpdateInput = z.infer<typeof FrameUpdateSchema>

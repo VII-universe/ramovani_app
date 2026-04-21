@@ -14,9 +14,13 @@ interface ConfigSnapshot {
   artworkWidthMm?: number
   artworkHeightMm?: number
   frameProfileName?: string
+  frameProfileWidthMm?: number
   passepartoutProfileName?: string
   passepartoutOverlapMm?: number
   includeGlass?: boolean
+  frameBOM?: Record<string, unknown>
+  passepartoutBOM?: Record<string, unknown>
+  glassBOM?: Record<string, unknown>
 }
 
 function parseSnapshot(raw: unknown): ConfigSnapshot {
@@ -54,13 +58,15 @@ export async function ordersRouter(app: FastifyInstance) {
         customerEmail: o.customerEmail,
         totalPrice:    o.totalPrice,
         currency:      o.currency,
-        // Production specs
+        // Production specs (flattened for display)
         artworkWidthMm:          snap.artworkWidthMm  ?? null,
         artworkHeightMm:         snap.artworkHeightMm ?? null,
         frameProfileName:        snap.frameProfileName        ?? null,
         passepartoutProfileName: snap.passepartoutProfileName ?? null,
         passepartoutOverlapMm:   snap.passepartoutOverlapMm   ?? null,
         includeGlass:            snap.includeGlass ?? false,
+        // Full snapshot for PDF generation
+        configSnapshot: o.configSnapshot,
       }
     })
 

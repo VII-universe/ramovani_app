@@ -18,12 +18,17 @@
     "@fastify/static": "^6.12.0",
     "@prisma/client": "^5.15.0",
     "@ramovani/shared-types": "workspace:*",
+    "@react-email/components": "^1.0.12",
+    "@react-email/render": "^2.0.7",
     "fastify": "^4.28.0",
+    "react": "^18.3.0",
+    "resend": "^6.12.0",
     "stripe": "^22.0.2",
     "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "@types/react": "^18.3.0",
     "prisma": "^5.15.0",
     "tsx": "^4.15.0",
     "typescript": "^5.4.0"

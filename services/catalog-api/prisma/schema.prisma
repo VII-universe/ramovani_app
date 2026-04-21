@@ -1,8 +1,3 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// Node Beta — Prisma schema
-// Single Source of Truth for frame and passepartout catalog data.
-// ─────────────────────────────────────────────────────────────────────────────
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,6 +5,64 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model FrameProfile {
+  id             String         @id @default(cuid())
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  name           String
+  slug           String         @unique
+  material       FrameMaterial
+  finish         MaterialFinish
+  profileWidthMm Float
+  totalDepthMm   Float
+  rabbetDepthMm  Float
+  rabbetWidthMm  Float
+  pbr            Json
+  pricePerMeter  Float
+  currency       String         @default("CZK")
+  inStock        Boolean        @default(true)
+  thumbnailUrl   String         @default("")
+  imageUrls      String[]
+  /// Controls visibility in the customer-facing configurator.
+  /// Set to false to hide a frame without deleting it (e.g. discontinued).
+  isActive       Boolean        @default(true)
+  textureUrl     String         @default("")
+
+  @@map("frame_profiles")
+}
+
+model PassepartoutProfile {
+  id              String            @id @default(cuid())
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  name            String
+  colorName       String
+  colorHex        String
+  style           PassepartoutStyle
+  thicknessMm     Float
+  bevelAngleDeg   Float             @default(45)
+  pricePerSqMeter Float
+  currency        String            @default("CZK")
+  inStock         Boolean           @default(true)
+  thumbnailUrl    String
+
+  @@map("passepartout_profiles")
+}
+
+model Order {
+  id              String      @id @default(uuid())
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  status          OrderStatus @default(PENDING)
+  customerEmail   String
+  totalPrice      Float
+  currency        String      @default("CZK")
+  configSnapshot  Json
+  stripeSessionId String?
+
+  @@map("orders")
 }
 
 enum FrameMaterial {
@@ -33,85 +86,10 @@ enum PassepartoutStyle {
   bevel
 }
 
-model FrameProfile {
-  id        String   @id @default(cuid())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  name   String
-  slug   String         @unique
-  material FrameMaterial
-  finish   MaterialFinish
-
-  // Physical dimensions (mm)
-  profileWidthMm Float
-  totalDepthMm   Float
-  rabbetDepthMm  Float
-  rabbetWidthMm  Float
-
-  // PBR rendering params (JSON blob)
-  pbr Json
-
-  // Commerce
-  pricePerMeter Float
-  currency      String  @default("CZK")
-  inStock       Boolean @default(true)
-  thumbnailUrl  String
-  imageUrls     String[]
-
-  @@map("frame_profiles")
-}
-
-model PassepartoutProfile {
-  id        String   @id @default(cuid())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  name      String
-  colorName String
-  colorHex  String
-  style     PassepartoutStyle
-
-  // Physical dimensions (mm)
-  thicknessMm    Float
-  bevelAngleDeg  Float @default(45)
-
-  // Commerce
-  pricePerSqMeter Float
-  currency        String  @default("CZK")
-  inStock         Boolean @default(true)
-  thumbnailUrl    String
-
-  @@map("passepartout_profiles")
-}
-
 enum OrderStatus {
   PENDING
   PAID
   IN_PRODUCTION
   SHIPPED
   CANCELLED
-}
-
-model Order {
-  id        String      @id @default(uuid())
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-
-  status        OrderStatus @default(PENDING)
-  customerEmail String
-
-  // Pricing
-  totalPrice Float
-  currency   String @default("CZK")
-
-  // Stripe Checkout Session ID — set when the customer is redirected to Stripe.
-  // Used by GET /checkout/success to verify payment without webhooks.
-  stripeSessionId String?
-
-  // Physical configuration snapshot (JSON) — everything the workshop needs
-  // to cut and assemble: canvas dimensions, chosen profiles, BOM, price quote.
-  configSnapshot Json
-
-  @@map("orders")
 }

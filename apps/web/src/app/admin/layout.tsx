@@ -22,6 +22,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             >
               Orders
             </Link>
+            <Link
+              href="/admin/inventory"
+              className="font-mono text-2xs uppercase tracking-[0.12em] text-ink-secondary transition-opacity hover:opacity-60"
+            >
+              Inventory
+            </Link>
           </nav>
         </div>
       </header>

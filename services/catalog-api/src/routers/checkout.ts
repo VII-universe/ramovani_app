@@ -1,7 +1,11 @@
+import React from 'react'
 import type { FastifyInstance } from 'fastify'
 import Stripe from 'stripe'
+import { Resend } from 'resend'
+import { render } from '@react-email/render'
 import { PrismaClient } from '@prisma/client'
 import { z } from 'zod'
+import { OrderConfirmationEmail } from '../templates/OrderConfirmationEmail'
 
 const prisma = new PrismaClient()
 
@@ -21,6 +25,16 @@ function getStripe(): Stripe {
 
 function getAppBaseUrl(): string {
   return (process.env['APP_BASE_URL'] ?? 'http://localhost:3000').replace(/\/$/, '')
+}
+
+/**
+ * Returns a Resend client if RESEND_API_KEY is configured, otherwise null.
+ * Email sending is best-effort — a missing key silently skips it in dev.
+ */
+function getResend(): Resend | null {
+  const key = process.env['RESEND_API_KEY']
+  if (!key || key === 're_REPLACE_ME') return null
+  return new Resend(key)
 }
 
 const CheckoutRequestSchema = z.object({
@@ -168,15 +182,92 @@ export async function checkoutRouter(app: FastifyInstance) {
     )
 
     if (session.payment_status === 'paid') {
+      // Fetch full order details needed for the confirmation email before updating
+      const fullOrder = await prisma.order.findUnique({
+        where: { id: orderId },
+        select: {
+          customerEmail:  true,
+          totalPrice:     true,
+          currency:       true,
+          configSnapshot: true,
+        },
+      })
+
       await prisma.order.update({
         where: { id: orderId },
         data:  { status: 'PAID' },
       })
       app.log.info({ orderId }, 'Order marked PAID via success polling')
+
+      // Send order confirmation email — awaited so errors surface in the terminal
+      if (fullOrder) {
+        await sendConfirmationEmail(orderId, fullOrder)
+      }
+
       return reply.send({ orderId: order.id, status: 'PAID', updated: true })
     }
 
     // Payment not confirmed yet (e.g. customer navigated to success URL manually)
     return reply.send({ orderId: order.id, status: order.status, updated: false })
   })
+}
+
+// ── Email helper ──────────────────────────────────────────────────────────────
+
+interface MinimalOrder {
+  customerEmail:  string
+  totalPrice:     number
+  currency:       string
+  configSnapshot: unknown
+}
+
+async function sendConfirmationEmail(orderId: string, order: MinimalOrder) {
+  console.log(`[email] Starting confirmation email for order ${orderId} → ${order.customerEmail}`)
+
+  try {
+    const resend = getResend()
+    if (!resend) {
+      console.warn('[email] RESEND_API_KEY not configured or still set to placeholder — skipping')
+      return
+    }
+
+    const snap = (order.configSnapshot && typeof order.configSnapshot === 'object')
+      ? order.configSnapshot as Record<string, unknown>
+      : {}
+
+    console.log('[email] Rendering React Email template...')
+    const html = await render(
+      React.createElement(OrderConfirmationEmail, {
+        orderId,
+        customerEmail:   order.customerEmail,
+        totalPrice:      order.totalPrice,
+        currency:        order.currency,
+        frameName:       snap['frameProfileName']        as string  | undefined,
+        matName:         snap['passepartoutProfileName'] as string  | undefined,
+        includeGlass:    snap['includeGlass']            as boolean | undefined,
+        artworkWidthMm:  snap['artworkWidthMm']          as number  | undefined,
+        artworkHeightMm: snap['artworkHeightMm']         as number  | undefined,
+      }),
+    )
+    console.log(`[email] Template rendered — ${html.length} chars`)
+
+    const shortId = orderId.slice(0, 8).toUpperCase()
+
+    console.log('[email] Attempting to send email via Resend...')
+    const result = await resend.emails.send({
+      from:    'onboarding@resend.dev',
+      to:      order.customerEmail,
+      subject: `Your Ramovani order #${shortId} is confirmed`,
+      html,
+    })
+
+    // Resend returns { data, error } — check both
+    if (result.error) {
+      console.error('[email] Resend returned an error:', result.error)
+    } else {
+      console.log(`[email] Sent successfully — Resend message ID: ${result.data?.id}`)
+    }
+  } catch (error) {
+    console.error('[email] Exception during email send:', error)
+  }
 }

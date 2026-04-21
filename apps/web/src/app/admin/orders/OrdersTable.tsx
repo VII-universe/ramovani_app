@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatPrice } from '@/lib/utils'
+import { generateWorksheetPdf } from '@/lib/worksheetPdf'
 
 export type OrderStatus = 'PENDING' | 'PAID' | 'IN_PRODUCTION' | 'SHIPPED' | 'CANCELLED'
 
@@ -19,6 +20,7 @@ export interface AdminOrder {
   passepartoutProfileName: string | null
   passepartoutOverlapMm: number | null
   includeGlass: boolean
+  configSnapshot?: Record<string, unknown>
 }
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
@@ -144,6 +146,32 @@ function OrderRow({ order, onUpdated }: RowProps) {
         </div>
       </td>
 
+      {/* Print Sheet */}
+      <td className="py-3 pr-4 align-top">
+        {(order.status === 'PAID' || order.status === 'IN_PRODUCTION') && (
+          <button
+            type="button"
+            onClick={() => generateWorksheetPdf({
+              id:            order.id,
+              customerEmail: order.customerEmail,
+              createdAt:     order.createdAt,
+              totalPrice:    order.totalPrice,
+              currency:      order.currency,
+              ...(order.configSnapshot          && { configSnapshot:          order.configSnapshot }),
+              ...(order.artworkWidthMm   != null && { artworkWidthMm:          order.artworkWidthMm }),
+              ...(order.artworkHeightMm  != null && { artworkHeightMm:         order.artworkHeightMm }),
+              ...(order.frameProfileName         && { frameProfileName:        order.frameProfileName }),
+              ...(order.passepartoutProfileName  && { passepartoutProfileName: order.passepartoutProfileName }),
+              ...(order.passepartoutOverlapMm != null && { passepartoutOverlapMm: order.passepartoutOverlapMm }),
+              includeGlass: order.includeGlass,
+            })}
+            className="rounded border border-canvas-muted bg-canvas px-2 py-1 font-mono text-2xs uppercase tracking-[0.08em] text-ink-secondary transition-colors hover:border-ink hover:text-ink"
+          >
+            Print sheet
+          </button>
+        )}
+      </td>
+
       {/* Production specs */}
       <td className="py-3 pr-4 align-top">
         <div className="space-y-0.5">
@@ -213,6 +241,9 @@ export function OrdersTable({ initialOrders }: Props) {
             </th>
             <th className="py-3 pr-4 font-mono text-2xs uppercase tracking-[0.12em] text-ink-tertiary">
               Status
+            </th>
+            <th className="py-3 pr-4 font-mono text-2xs uppercase tracking-[0.12em] text-ink-tertiary">
+              Print
             </th>
             <th className="py-3 pr-4 font-mono text-2xs uppercase tracking-[0.12em] text-ink-tertiary">
               Production specs
